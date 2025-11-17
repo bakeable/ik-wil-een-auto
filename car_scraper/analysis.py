@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 import warnings
+from .utils import get_brand_model_paths
 
 warnings.filterwarnings("ignore")
 
@@ -18,13 +19,30 @@ warnings.filterwarnings("ignore")
 class CarValueAnalyzer:
     """Analyze car listings and determine best value vehicles."""
 
-    def __init__(self, data_path: str = "data/car_listings.csv"):
+    def __init__(self, brand: str = None, model: str = None, data_path: str = None):
         """Initialize with car listing data.
 
         Args:
-            data_path: Path to CSV file with car listing data
+            brand: Car brand name (e.g., "Peugeot")
+            model: Car model name (e.g., "2008")
+            data_path: Direct path to CSV file (overrides brand/model if provided)
         """
-        self.data_path = Path(data_path)
+        if data_path:
+            self.data_path = Path(data_path)
+            self.brand = None
+            self.model = None
+        elif brand and model:
+            paths = get_brand_model_paths(brand, model)
+            self.data_path = Path(paths["data_file"])
+            self.brand = brand
+            self.model = model
+            self.paths = paths
+        else:
+            # Fallback for backward compatibility
+            self.data_path = Path("data/listings.csv")
+            self.brand = None
+            self.model = None
+
         self.df: Optional[pd.DataFrame] = None
         self.model: Optional[RandomForestRegressor] = None
         self.scaler: Optional[StandardScaler] = None
@@ -400,14 +418,18 @@ class CarValueAnalyzer:
 
         return display_df.to_html(classes="table", escape=False, index=False)
 
-    def generate_report(
-        self, output_path: str = "reports/analysis_report.html"
-    ) -> None:
+    def generate_report(self, output_path: str = None) -> None:
         """Generate comprehensive analysis report.
 
         Args:
-            output_path: Path to save HTML report
+            output_path: Path to save HTML report (auto-generated if not provided)
         """
+        # Determine output path
+        if output_path is None:
+            if hasattr(self, "paths") and self.paths:
+                output_path = self.paths["standard_report"]
+            else:
+                output_path = "reports/analysis_report.html"
         # Ensure analysis is complete
         stats = self.explore_data()
         self.train_model()
@@ -448,11 +470,14 @@ class CarValueAnalyzer:
         )
 
         # Generate HTML report
+        title_suffix = (
+            f" - {self.brand} {self.model}" if self.brand and self.model else ""
+        )
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Car Value Analysis Report</title>
+            <title>Car Value Analysis Report{title_suffix}</title>
             <style>
                 body {{ font-family: Arial, sans-serif; margin: 40px; }}
                 h1, h2 {{ color: #333; }}
@@ -469,7 +494,7 @@ class CarValueAnalyzer:
             </style>
         </head>
         <body>
-            <h1>Car Value Analysis Report</h1>
+            <h1>Car Value Analysis Report{title_suffix}</h1>
             
             <h2>Dataset Overview</h2>
             <div class="metric">
@@ -503,12 +528,8 @@ def main():
     import argparse
 
     parser = argparse.ArgumentParser(description="Analyze car value from scraped data")
-    parser.add_argument(
-        "--data", default="data/listings.csv", help="Path to CSV data file"
-    )
-    parser.add_argument(
-        "--report", default="reports/analysis_report.html", help="Output report path"
-    )
+    parser.add_argument("brand", help="Car brand name (e.g., Peugeot, Volkswagen)")
+    parser.add_argument("model", help="Car model name (e.g., 2008, Golf GTI)")
     parser.add_argument(
         "--top-deals", type=int, default=20, help="Number of top deals to show"
     )
@@ -530,11 +551,21 @@ def main():
 
     args = parser.parse_args()
 
-    analyzer = CarValueAnalyzer(args.data)
+    # Get file paths for this brand/model
+    paths = get_brand_model_paths(args.brand, args.model)
+
+    analyzer = CarValueAnalyzer(args.brand, args.model)
 
     try:
+        # Check if data file exists
+        if not Path(paths["data_file"]).exists():
+            print(f"Error: No data file found for {args.brand} {args.model}")
+            print(f"Expected file: {paths['data_file']}")
+            print("Please run the scraper first for this brand/model.")
+            return
+
         # Run full analysis
-        print("Starting car value analysis...")
+        print(f"Starting car value analysis for {args.brand} {args.model}...")
 
         # Apply filters if specified
         if (
@@ -573,17 +604,17 @@ def main():
 
         print(f"✓ Found {len(best_deals)} best deals")
 
-        analyzer.generate_report(args.report)
-        print("✓ Analysis report generated")
+        analyzer.generate_report()
+        print(f"✓ Analysis report generated: {paths['standard_report']}")
 
         # Save best deals to CSV
-        best_deals_path = "reports/best_deals.csv"
-        best_deals.to_csv(best_deals_path, index=False)
-        print(f"✓ Best deals saved to {best_deals_path}")
+        best_deals.to_csv(paths["standard_deals"], index=False)
+        print(f"✓ Best deals saved to {paths['standard_deals']}")
 
     except FileNotFoundError:
-        print("Error: No data file found. Please run the scraper first.")
-        print("Usage: poetry run scrape-cars")
+        print(f"Error: No data file found for {args.brand} {args.model}")
+        print(f"Expected file: {paths['data_file']}")
+        print("Please run the scraper first for this brand/model.")
 
 
 if __name__ == "__main__":

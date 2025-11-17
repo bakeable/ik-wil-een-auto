@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from .analysis import CarValueAnalyzer
+from .utils import get_brand_model_paths
 
 
 class PersonalCarAnalyzer(CarValueAnalyzer):
@@ -337,7 +338,7 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
         self,
         years_owned: int,
         km_per_year: int,
-        output_path: str = "reports/personal_analysis_report.html",
+        output_path: str = None,
         top_n: int = 20,
         **filter_kwargs,
     ) -> None:
@@ -346,10 +347,16 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
         Args:
             years_owned: Number of years you plan to own the car
             km_per_year: Kilometers driven per year
-            output_path: Path to save HTML report
+            output_path: Path to save HTML report (auto-generated if not provided)
             top_n: Number of cars to show in report
             **filter_kwargs: Additional filters (max_km, max_age, etc.)
         """
+        # Determine output path
+        if output_path is None:
+            if hasattr(self, "paths") and self.paths:
+                output_path = self.paths["personal_report"]
+            else:
+                output_path = "reports/personal_analysis_report.html"
         # Ensure analysis is complete
         stats = self.explore_data()
         self.train_model()
@@ -426,11 +433,14 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
         )
 
         # Generate HTML report
+        title_suffix = (
+            f" - {self.brand} {self.model}" if self.brand and self.model else ""
+        )
         html_content = f"""
         <!DOCTYPE html>
         <html>
         <head>
-            <title>Personal Car Cost Analysis - {years_owned} Years, {km_per_year:,} km/year</title>
+            <title>Personal Car Cost Analysis - {years_owned} Years, {km_per_year:,} km/year{title_suffix}</title>
             <style>
                 body {{ font-family: Arial, sans-serif; margin: 40px; }}
                 h1, h2 {{ color: #333; }}
@@ -444,7 +454,7 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
             </style>
         </head>
         <body>
-            <h1>Personal Car Cost Analysis</h1>
+            <h1>Personal Car Cost Analysis{title_suffix}</h1>
             
             <h2>Your Usage Profile</h2>
             <div class="metric">
@@ -508,9 +518,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Personal car cost analysis based on your driving habits"
     )
-    parser.add_argument(
-        "--data", default="data/listings.csv", help="Path to CSV data file"
-    )
+    parser.add_argument("brand", help="Car brand name (e.g., Peugeot, Volkswagen)")
+    parser.add_argument("model", help="Car model name (e.g., 2008, Golf GTI)")
     parser.add_argument(
         "--years-owned",
         type=int,
@@ -519,11 +528,6 @@ def main():
     )
     parser.add_argument(
         "--km-per-year", type=int, required=True, help="Kilometers driven per year"
-    )
-    parser.add_argument(
-        "--report",
-        default="reports/personal_analysis_report.html",
-        help="Output report path",
     )
     parser.add_argument(
         "--top-deals", type=int, default=20, help="Number of top deals to show"
@@ -551,11 +555,21 @@ def main():
     if args.fuel_type:
         filter_kwargs["fuel_type"] = args.fuel_type
 
-    analyzer = PersonalCarAnalyzer(args.data)
+    # Get file paths for this brand/model
+    paths = get_brand_model_paths(args.brand, args.model)
+
+    analyzer = PersonalCarAnalyzer(args.brand, args.model)
 
     try:
+        # Check if data file exists
+        if not Path(paths["data_file"]).exists():
+            print(f"Error: No data file found for {args.brand} {args.model}")
+            print(f"Expected file: {paths['data_file']}")
+            print("Please run the scraper first for this brand/model.")
+            return
+
         print(
-            f"Starting personal cost analysis for {args.years_owned} years, {args.km_per_year:,} km/year..."
+            f"Starting personal cost analysis for {args.brand} {args.model}: {args.years_owned} years, {args.km_per_year:,} km/year..."
         )
 
         # Get best personal deals
@@ -570,19 +584,19 @@ def main():
         analyzer.generate_personal_report(
             years_owned=args.years_owned,
             km_per_year=args.km_per_year,
-            output_path=args.report,
             top_n=args.top_deals,
             **filter_kwargs,
         )
 
         # Save best deals to CSV
-        best_deals_path = "reports/personal_best_deals.csv"
-        best_deals.to_csv(best_deals_path, index=False)
-        print(f"✓ Best personal deals saved to {best_deals_path}")
+        best_deals.to_csv(paths["personal_deals"], index=False)
+        print(f"✓ Best personal deals saved to {paths['personal_deals']}")
+        print(f"✓ Personal analysis report generated: {paths['personal_report']}")
 
     except FileNotFoundError:
-        print("Error: No data file found. Please run the scraper first.")
-        print("Usage: poetry run scrape-cars")
+        print(f"Error: No data file found for {args.brand} {args.model}")
+        print(f"Expected file: {paths['data_file']}")
+        print("Please run the scraper first for this brand/model.")
 
 
 if __name__ == "__main__":

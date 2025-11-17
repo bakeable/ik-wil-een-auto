@@ -12,7 +12,12 @@ from typing import Dict, List, Optional, Set
 from playwright.async_api import async_playwright, Page
 
 from .models import CarListing
-from .utils import clean_price, clean_mileage, normalize_fuel_type
+from .utils import (
+    clean_price,
+    clean_mileage,
+    normalize_brand_model,
+    normalize_fuel_type,
+)
 
 
 # Regex patterns for data extraction
@@ -485,9 +490,6 @@ def main() -> None:
         "--max-pages", type=int, default=100, help="Maximum pages to scrape"
     )
     parser.add_argument(
-        "--output", default="data/car_listings.csv", help="Output CSV file"
-    )
-    parser.add_argument(
         "--quiet", action="store_true", help="Suppress progress messages"
     )
 
@@ -498,7 +500,7 @@ def main() -> None:
             make=args.make,
             model=args.model,
             max_pages=args.max_pages,
-            output_file=args.output,
+            output_file=f"data/{normalize_brand_model(args.make, args.model)}.listings.csv",
             verbose=not args.quiet,
         )
 

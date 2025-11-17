@@ -7,6 +7,48 @@ from pathlib import Path
 from typing import Optional
 
 
+def normalize_brand_model(brand: str, model: str) -> str:
+    """Normalize brand and model names for file naming.
+
+    Args:
+        brand: Car brand name (e.g., "Peugeot", "Volkswagen")
+        model: Car model name (e.g., "2008", "Golf GTI")
+
+    Returns:
+        Normalized string like "peugeot.2008" or "volkswagen.golf_gti"
+    """
+    # Normalize brand: lowercase, remove spaces and special chars
+    brand_clean = re.sub(r"[^\w]", "", brand.lower())
+
+    # Normalize model: lowercase, spaces to underscores, remove special chars except underscores
+    model_clean = re.sub(r"[^\w\s]", "", model.lower())
+    model_clean = re.sub(r"\s+", "_", model_clean.strip())
+
+    return f"{brand_clean}.{model_clean}"
+
+
+def get_brand_model_paths(brand: str, model: str) -> dict:
+    """Get standardized file paths for a specific brand/model.
+
+    Args:
+        brand: Car brand name
+        model: Car model name
+
+    Returns:
+        Dictionary with standardized paths for data and reports
+    """
+    normalized = normalize_brand_model(brand, model)
+
+    return {
+        "data_file": f"data/{normalized}.listings.csv",
+        "standard_report": f"reports/{normalized}.analysis_report.html",
+        "standard_deals": f"reports/{normalized}.best_deals.csv",
+        "personal_report": f"reports/{normalized}.personal_analysis_report.html",
+        "personal_deals": f"reports/{normalized}.personal_best_deals.csv",
+        "normalized_name": normalized,
+    }
+
+
 def clean_price(price_str: str) -> Optional[int]:
     """Clean and parse price string to integer."""
     if not price_str:
@@ -201,10 +243,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Clean duplicate car listings from CSV file"
     )
-    parser.add_argument("input_file", help="Path to the CSV file to clean")
-    parser.add_argument(
-        "--output-file", help="Path for cleaned output file (default: overwrite input)"
-    )
+    parser.add_argument("brand", help="Car brand name (e.g., Peugeot, Volkswagen)")
+    parser.add_argument("model", help="Car model name (e.g., 2008, Golf GTI)")
     parser.add_argument(
         "--columns",
         nargs="+",
@@ -219,15 +259,22 @@ def main():
 
     args = parser.parse_args()
 
+    # Get standardized file paths
+    paths = get_brand_model_paths(args.brand, args.model)
+    input_file = paths["data_file"]
+
     # Validate input file exists
-    if not Path(args.input_file).exists():
-        print(f"Error: Input file {args.input_file} does not exist")
+    if not Path(input_file).exists():
+        print(f"Error: Input file {input_file} does not exist")
+        print(f"Expected file for {args.brand} {args.model}: {input_file}")
         return
 
     if args.preview:
         # Preview mode - just show what would be removed
-        df = pd.read_csv(args.input_file)
-        print(f"Loaded {len(df)} records from {args.input_file}")
+        df = pd.read_csv(input_file)
+        print(
+            f"Loaded {len(df)} records for {args.brand} {args.model} from {input_file}"
+        )
 
         available_columns = [col for col in args.columns if col in df.columns]
         if not available_columns:
@@ -255,7 +302,10 @@ def main():
                 print(f"   ... {len(group)} rows total")
     else:
         # Actually clean the data
-        clean_duplicates(args.input_file, args.output_file, args.columns)
+        print(f"Cleaning duplicates for {args.brand} {args.model}...")
+        clean_duplicates(
+            input_file, input_file, args.columns
+        )  # Always overwrite source
 
 
 if __name__ == "__main__":
