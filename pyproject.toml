@@ -1,0 +1,57 @@
+[tool.poetry]
+name = "ik-wil-een-auto"
+version = "0.1.0"
+description = "Car sales data scraping and analysis project"
+authors = ["Robin Bakker <robin@example.com>"]
+readme = "README.md"
+packages = [{include = "car_scraper"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+playwright = "^1.40.0"
+pandas = "^2.1.0"
+numpy = "^1.24.0"
+scikit-learn = "^1.3.0"
+matplotlib = "^3.7.0"
+seaborn = "^0.12.0"
+jupyter = "^1.0.0"
+ipykernel = "^6.25.0"
+requests = "^2.31.0"
+beautifulsoup4 = "^4.12.0"
+lxml = "^5.0.0"
+openpyxl = "^3.1.0"
+plotly = "^5.17.0"
+scipy = "^1.11.0"
+statsmodels = "^0.14.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-asyncio = "^0.21.0"
+black = "^23.7.0"
+flake8 = "^6.0.0"
+mypy = "^1.5.0"
+isort = "^5.12.0"
+
+[tool.poetry.scripts]
+scrape-cars = "car_scraper.scrape:main"
+analyze-cars = "car_scraper.analysis:main"
+personal-analysis = "car_scraper.personal_analysis:main"
+clean-listings = "car_scraper.utils:main"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
