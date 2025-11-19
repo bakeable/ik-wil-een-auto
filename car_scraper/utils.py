@@ -49,6 +49,421 @@ def get_brand_model_paths(brand: str, model: str) -> dict:
     }
 
 
+def discover_available_models() -> list:
+    """Discover all available car models by scanning the data folder.
+
+    Returns:
+        List of tuples (brand, model, normalized_name) for available models
+    """
+    data_path = Path("data")
+    models = []
+
+    for file_path in data_path.glob("*.listings.csv"):
+        # Parse filename: brand.model.listings.csv
+        filename = file_path.stem  # removes .csv
+        if filename.endswith(".listings"):
+            normalized_name = filename[:-9]  # remove '.listings'
+            parts = normalized_name.split(".")
+            if len(parts) >= 2:
+                brand_part = parts[0]
+                model_part = ".".join(parts[1:])  # handle models with dots
+
+                # Convert back to readable format
+                brand = brand_part.capitalize()
+                model = model_part.replace("_", " ").title()
+
+                models.append((brand, model, normalized_name, str(file_path)))
+
+    return sorted(models)
+
+
+def generate_analysis_index(
+    models_data: list, output_path: str = "reports/index.html"
+) -> None:
+    """Generate an index.html file for easy navigation between car models.
+
+    Args:
+        models_data: List of (brand, model, normalized_name, analysis_data) tuples
+        output_path: Path to save the index file
+    """
+    # Generate HTML content
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Car Analysis Dashboard</title>
+        <style>
+            body {{ 
+                font-family: Arial, sans-serif; 
+                margin: 40px; 
+                background-color: #f5f5f5;
+            }}
+            h1, h2 {{ color: #333; }}
+            .container {{ 
+                max-width: 1200px; 
+                margin: 0 auto; 
+                background: white;
+                padding: 30px;
+                border-radius: 10px;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            }}
+            .model-grid {{ 
+                display: grid; 
+                grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); 
+                gap: 20px; 
+                margin: 30px 0;
+            }}
+            .model-card {{ 
+                border: 1px solid #ddd; 
+                border-radius: 8px; 
+                padding: 20px; 
+                background: #fafafa;
+                transition: transform 0.2s, box-shadow 0.2s;
+            }}
+            .model-card:hover {{
+                transform: translateY(-2px);
+                box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            }}
+            .model-title {{ 
+                font-size: 1.3em; 
+                font-weight: bold; 
+                margin-bottom: 15px; 
+                color: #2c3e50;
+            }}
+            .stats {{ 
+                background: white;
+                padding: 10px;
+                border-radius: 5px;
+                margin: 10px 0;
+            }}
+            .stat-row {{ 
+                display: flex; 
+                justify-content: space-between; 
+                margin: 5px 0;
+                padding: 2px 0;
+            }}
+            .stat-label {{ font-weight: bold; color: #7f8c8d; }}
+            .stat-value {{ color: #2c3e50; }}
+            .links {{ margin-top: 15px; }}
+            .btn {{ 
+                display: inline-block;
+                padding: 8px 16px; 
+                margin: 5px 10px 5px 0; 
+                text-decoration: none; 
+                border-radius: 5px; 
+                font-size: 0.9em;
+                transition: background-color 0.3s;
+            }}
+            .btn-personal {{ 
+                background: #3498db; 
+                color: white; 
+            }}
+            .btn-personal:hover {{ background: #2980b9; }}
+            .btn-standard {{ 
+                background: #95a5a6; 
+                color: white; 
+            }}
+            .btn-standard:hover {{ background: #7f8c8d; }}
+            .summary {{ 
+                background: #ecf0f1;
+                padding: 20px;
+                border-radius: 8px;
+                margin: 20px 0;
+            }}
+            .highlight {{ 
+                background: #d5dbdb;
+                padding: 15px;
+                border-left: 4px solid #3498db;
+                margin: 15px 0;
+            }}
+            .no-data {{ 
+                color: #e74c3c; 
+                font-style: italic; 
+            }}
+            .last-updated {{
+                color: #7f8c8d;
+                font-size: 0.9em;
+                text-align: center;
+                margin-top: 30px;
+                padding-top: 20px;
+                border-top: 1px solid #ecf0f1;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚗 Car Analysis Dashboard</h1>
+            
+            <div class="summary">
+                <h2>Overview</h2>
+                <p><strong>Available Models:</strong> {len(models_data)}</p>
+                <p><strong>Total Listings Analyzed:</strong> {sum(data.get('total_listings', 0) for _, _, _, data in models_data)}</p>
+            </div>
+            
+            <div class="highlight">
+                <h3>💡 How to Use</h3>
+                <ul>
+                    <li><strong>Personal Analysis:</strong> Shows cost-effectiveness for your specific driving pattern</li>
+                    <li><strong>Market Analysis:</strong> Shows general market value analysis and best deals</li>
+                    <li><strong>Best Deal Cars:</strong> Optimized for your ownership period and annual mileage</li>
+                </ul>
+            </div>
+            
+            <h2>Car Models Analysis</h2>
+            <div class="model-grid">
+    """
+
+    for brand, model, normalized_name, analysis_data in models_data:
+        # Extract analysis data
+        total_listings = analysis_data.get("total_listings", "N/A")
+        best_deal_price = analysis_data.get("best_deal_price", "N/A")
+        best_deal_cost_per_km = analysis_data.get("best_deal_cost_per_km", "N/A")
+        avg_annual_cost = analysis_data.get("avg_annual_cost", "N/A")
+        has_personal_analysis = analysis_data.get("has_personal_analysis", False)
+
+        html_content += f"""
+                <div class="model-card">
+                    <div class="model-title">{brand} {model}</div>
+                    <div class="stats">
+                        <div class="stat-row">
+                            <span class="stat-label">Total Listings:</span>
+                            <span class="stat-value">{total_listings}</span>
+                        </div>
+        """
+
+        if has_personal_analysis:
+            html_content += f"""
+                        <div class="stat-row">
+                            <span class="stat-label">Best Deal Price:</span>
+                            <span class="stat-value">€{best_deal_price:,.0f}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Cost per KM:</span>
+                            <span class="stat-value">€{best_deal_cost_per_km:.3f}/km</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Avg Annual Cost:</span>
+                            <span class="stat-value">€{avg_annual_cost:,.0f}/year</span>
+                        </div>
+            """
+        else:
+            html_content += f"""
+                        <div class="stat-row">
+                            <span class="stat-label">Analysis Status:</span>
+                            <span class="stat-value no-data">No personal analysis yet</span>
+                        </div>
+            """
+
+        html_content += f"""
+                    </div>
+                    <div class="links">
+        """
+
+        if has_personal_analysis:
+            html_content += f"""
+                        <a href="{normalized_name}.personal_analysis_report.html" class="btn btn-personal">
+                            📊 Personal Analysis
+                        </a>
+            """
+
+        # Check if standard analysis exists
+        standard_report_path = Path(f"reports/{normalized_name}.analysis_report.html")
+        if standard_report_path.exists():
+            html_content += f"""
+                        <a href="{normalized_name}.analysis_report.html" class="btn btn-standard">
+                            📈 Market Analysis
+                        </a>
+            """
+
+        html_content += """
+                    </div>
+                </div>
+        """
+
+    html_content += f"""
+            </div>
+            
+            <div class="last-updated">
+                Last updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    # Write the file
+    Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        f.write(html_content)
+
+    print(f"✓ Analysis index generated: {output_path}")
+
+
+def run_comprehensive_analysis(
+    years_owned: int = 5, km_per_year: int = 30000, **filter_kwargs
+):
+    """Run personal analysis for all available car models and generate index.
+
+    Args:
+        years_owned: Number of years you plan to own the car
+        km_per_year: Kilometers driven per year
+        **filter_kwargs: Additional filters (max_age, max_price, etc.)
+    """
+    from .personal_analysis import PersonalCarAnalyzer
+
+    print(f"🚗 Running comprehensive analysis for all models...")
+    print(f"   Ownership period: {years_owned} years")
+    print(f"   Annual driving: {km_per_year:,} km/year")
+    print()
+
+    # Discover available models
+    available_models = discover_available_models()
+    if not available_models:
+        print("❌ No car data files found in data/ directory")
+        print("   Please run scrape-cars for some models first")
+        return
+
+    print(f"📋 Found {len(available_models)} car models to analyze:")
+    for brand, model, normalized_name, _ in available_models:
+        print(f"   - {brand} {model}")
+    print()
+
+    # Run analysis for each model
+    models_with_analysis = []
+
+    for i, (brand, model, normalized_name, data_file) in enumerate(available_models, 1):
+        print(f"[{i}/{len(available_models)}] Analyzing {brand} {model}...")
+
+        try:
+            # Initialize analyzer for this model
+            analyzer = PersonalCarAnalyzer(brand, model)
+
+            # Get best personal deals
+            best_deals = analyzer.get_best_personal_deals(
+                years_owned=years_owned,
+                km_per_year=km_per_year,
+                top_n=20,
+                **filter_kwargs,
+            )
+
+            if len(best_deals) > 0:
+                # Generate personal analysis report
+                analyzer.generate_personal_report(
+                    years_owned=years_owned,
+                    km_per_year=km_per_year,
+                    top_n=20,
+                    **filter_kwargs,
+                )
+
+                # Save best deals CSV
+                paths = get_brand_model_paths(brand, model)
+                best_deals.to_csv(paths["personal_deals"], index=False)
+
+                # Collect analysis data for index
+                analysis_data = {
+                    "total_listings": (
+                        len(analyzer.df) if analyzer.df is not None else 0
+                    ),
+                    "best_deal_price": (
+                        float(best_deals.iloc[0]["price"]) if len(best_deals) > 0 else 0
+                    ),
+                    "best_deal_cost_per_km": (
+                        float(best_deals.iloc[0]["cost_per_km"])
+                        if len(best_deals) > 0
+                        else 0
+                    ),
+                    "avg_annual_cost": (
+                        float(best_deals["total_annual_cost"].mean())
+                        if len(best_deals) > 0
+                        else 0
+                    ),
+                    "has_personal_analysis": True,
+                }
+
+                print(
+                    f"   ✓ Complete - Best deal: €{analysis_data['best_deal_price']:,.0f} ({analysis_data['best_deal_cost_per_km']:.3f}/km)"
+                )
+            else:
+                analysis_data = {
+                    "total_listings": (
+                        len(analyzer.df) if analyzer.df is not None else 0
+                    ),
+                    "has_personal_analysis": False,
+                }
+                print(f"   ⚠️  No deals found matching criteria")
+
+        except Exception as e:
+            print(f"   ❌ Error analyzing {brand} {model}: {str(e)}")
+            analysis_data = {"total_listings": 0, "has_personal_analysis": False}
+
+        models_with_analysis.append((brand, model, normalized_name, analysis_data))
+
+    print()
+    print("📊 Generating analysis index...")
+    generate_analysis_index(models_with_analysis)
+
+    # Summary
+    successful_analyses = sum(
+        1
+        for _, _, _, data in models_with_analysis
+        if data.get("has_personal_analysis", False)
+    )
+    print()
+    print("🎉 Comprehensive analysis complete!")
+    print(
+        f"   ✓ {successful_analyses}/{len(available_models)} models analyzed successfully"
+    )
+    print(f"   ✓ Index page: reports/index.html")
+    print(f"   ✓ All personal analysis reports generated")
+
+
+def main_comprehensive():
+    """Command-line interface for comprehensive analysis."""
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run personal analysis for all available car models and generate index"
+    )
+    parser.add_argument(
+        "--years-owned",
+        type=int,
+        default=5,
+        help="Number of years you plan to own the car (default: 5)",
+    )
+    parser.add_argument(
+        "--km-per-year",
+        type=int,
+        default=30000,
+        help="Kilometers driven per year (default: 30,000)",
+    )
+    parser.add_argument("--max-age", type=float, help="Maximum car age in years")
+    parser.add_argument("--max-km", type=int, help="Maximum current kilometers")
+    parser.add_argument("--max-price", type=int, help="Maximum price")
+    parser.add_argument("--min-price", type=int, help="Minimum price")
+    parser.add_argument(
+        "--fuel-type", type=str, help="Filter by fuel type (e.g., Gasoline, Diesel)"
+    )
+
+    args = parser.parse_args()
+
+    # Prepare filter arguments
+    filter_kwargs = {}
+    if args.max_age:
+        filter_kwargs["max_age"] = args.max_age
+    if args.max_km:
+        filter_kwargs["max_km"] = args.max_km
+    if args.max_price:
+        filter_kwargs["max_price"] = args.max_price
+    if args.min_price:
+        filter_kwargs["min_price"] = args.min_price
+    if args.fuel_type:
+        filter_kwargs["fuel_type"] = args.fuel_type
+
+    run_comprehensive_analysis(
+        years_owned=args.years_owned, km_per_year=args.km_per_year, **filter_kwargs
+    )
+
+
 def clean_price(price_str: str) -> Optional[int]:
     """Clean and parse price string to integer."""
     if not price_str:
@@ -238,17 +653,23 @@ def clean_duplicates(
         print(f"   Savings: {removed_count/initial_count*100:.1f}% reduction")
 
 
-def main():
+def deduplicate(make, model):
     """Command-line interface for the duplicate cleaner."""
     parser = argparse.ArgumentParser(
         description="Clean duplicate car listings from CSV file"
     )
-    parser.add_argument("brand", help="Car brand name (e.g., Peugeot, Volkswagen)")
+    parser.add_argument("make", help="Car make name (e.g., Peugeot, Volkswagen)")
     parser.add_argument("model", help="Car model name (e.g., 2008, Golf GTI)")
     parser.add_argument(
         "--columns",
         nargs="+",
-        default=["kilometers", "age_in_years", "horsepower"],
+        default=[
+            "kilometers",
+            "month_of_registration",
+            "year_of_registration",
+            "paint",
+            "horsepower",
+        ],
         help="Columns to use for duplicate detection (default: kilometers age_in_years horsepower)",
     )
     parser.add_argument(
@@ -259,21 +680,29 @@ def main():
 
     args = parser.parse_args()
 
+    if not args.make or not args.model:
+        args.make = make
+        args.model = model
+
+    if not args.make or not args.model:
+        print("Error: Please provide both make and model names.")
+        return
+
     # Get standardized file paths
-    paths = get_brand_model_paths(args.brand, args.model)
+    paths = get_brand_model_paths(args.make, args.model)
     input_file = paths["data_file"]
 
     # Validate input file exists
     if not Path(input_file).exists():
         print(f"Error: Input file {input_file} does not exist")
-        print(f"Expected file for {args.brand} {args.model}: {input_file}")
+        print(f"Expected file for {args.make} {args.model}: {input_file}")
         return
 
     if args.preview:
         # Preview mode - just show what would be removed
         df = pd.read_csv(input_file)
         print(
-            f"Loaded {len(df)} records for {args.brand} {args.model} from {input_file}"
+            f"Loaded {len(df)} records for {args.make} {args.model} from {input_file}"
         )
 
         available_columns = [col for col in args.columns if col in df.columns]
@@ -302,11 +731,11 @@ def main():
                 print(f"   ... {len(group)} rows total")
     else:
         # Actually clean the data
-        print(f"Cleaning duplicates for {args.brand} {args.model}...")
+        print(f"Cleaning duplicates for {args.make} {args.model}...")
         clean_duplicates(
             input_file, input_file, args.columns
         )  # Always overwrite source
 
 
 if __name__ == "__main__":
-    main()
+    deduplicate()

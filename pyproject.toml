@@ -36,7 +36,8 @@ isort = "^5.12.0"
 scrape-cars = "car_scraper.scrape:main"
 analyze-cars = "car_scraper.analysis:main"
 personal-analysis = "car_scraper.personal_analysis:main"
-clean-listings = "car_scraper.utils:main"
+clean-listings = "car_scraper.utils:deduplicate"
+analyze-all = "car_scraper.utils:main_comprehensive"
 
 [build-system]
 requires = ["poetry-core"]

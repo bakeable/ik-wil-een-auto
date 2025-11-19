@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 from .analysis import CarValueAnalyzer
-from .utils import get_brand_model_paths
+from .utils import deduplicate, get_brand_model_paths
 
 
 class PersonalCarAnalyzer(CarValueAnalyzer):
@@ -26,7 +26,7 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
         if self.df is None:
             self.load_data()
 
-        if self.model is None or self.scaler is None:
+        if self.ml_model is None or self.scaler is None:
             self.train_model()
 
         # Calculate future car specs after ownership period
@@ -78,7 +78,7 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
         X_future_scaled = self.scaler.transform(X_future)
 
         # Predict future values
-        future_values = self.model.predict(X_future_scaled)
+        future_values = self.ml_model.predict(X_future_scaled)
         self.df["future_value"] = future_values
 
         return self.df
@@ -434,7 +434,7 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
 
         # Generate HTML report
         title_suffix = (
-            f" - {self.brand} {self.model}" if self.brand and self.model else ""
+            f" - {self.brand} {self.car_model}" if self.brand and self.car_model else ""
         )
         html_content = f"""
         <!DOCTYPE html>
@@ -451,10 +451,35 @@ class PersonalCarAnalyzer(CarValueAnalyzer):
                 .highlight {{ background-color: #d4edda; }}
                 a {{ color: #007bff; text-decoration: none; }}
                 a:hover {{ text-decoration: underline; }}
+                .back-button {{ 
+                    display: inline-block;
+                    padding: 10px 20px;
+                    background: #6c757d;
+                    color: white;
+                    text-decoration: none;
+                    border-radius: 5px;
+                    margin: 20px 0;
+                    font-weight: bold;
+                }}
+                .back-button:hover {{ 
+                    background: #5a6268;
+                    color: white;
+                }}
+                .header-nav {{
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    margin-bottom: 20px;
+                    padding: 10px 0;
+                    border-bottom: 1px solid #dee2e6;
+                }}
             </style>
         </head>
         <body>
-            <h1>Personal Car Cost Analysis{title_suffix}</h1>
+            <div class="header-nav">
+                <h1>Personal Car Cost Analysis{title_suffix}</h1>
+                <a href="index.html" class="back-button">🏠 Back to Dashboard</a>
+            </div>
             
             <h2>Your Usage Profile</h2>
             <div class="metric">
@@ -518,8 +543,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="Personal car cost analysis based on your driving habits"
     )
-    parser.add_argument("brand", help="Car brand name (e.g., Peugeot, Volkswagen)")
-    parser.add_argument("model", help="Car model name (e.g., 2008, Golf GTI)")
+    parser.add_argument("--make", help="Car brand name (e.g., Peugeot, Volkswagen)")
+    parser.add_argument("--model", help="Car model name (e.g., 2008, Golf GTI)")
     parser.add_argument(
         "--years-owned",
         type=int,
@@ -555,21 +580,24 @@ def main():
     if args.fuel_type:
         filter_kwargs["fuel_type"] = args.fuel_type
 
-    # Get file paths for this brand/model
-    paths = get_brand_model_paths(args.brand, args.model)
+    # Deduplicate data
+    deduplicate(args.make, args.model)
 
-    analyzer = PersonalCarAnalyzer(args.brand, args.model)
+    # Get file paths for this brand/model
+    paths = get_brand_model_paths(args.make, args.model)
+
+    analyzer = PersonalCarAnalyzer(args.make, args.model)
 
     try:
         # Check if data file exists
         if not Path(paths["data_file"]).exists():
-            print(f"Error: No data file found for {args.brand} {args.model}")
+            print(f"Error: No data file found for {args.make} {args.model}")
             print(f"Expected file: {paths['data_file']}")
             print("Please run the scraper first for this brand/model.")
             return
 
         print(
-            f"Starting personal cost analysis for {args.brand} {args.model}: {args.years_owned} years, {args.km_per_year:,} km/year..."
+            f"Starting personal cost analysis for {args.make} {args.model}: {args.years_owned} years, {args.km_per_year:,} km/year..."
         )
 
         # Get best personal deals

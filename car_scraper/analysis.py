@@ -30,21 +30,21 @@ class CarValueAnalyzer:
         if data_path:
             self.data_path = Path(data_path)
             self.brand = None
-            self.model = None
+            self.car_model = None
         elif brand and model:
             paths = get_brand_model_paths(brand, model)
             self.data_path = Path(paths["data_file"])
             self.brand = brand
-            self.model = model
+            self.car_model = model
             self.paths = paths
         else:
             # Fallback for backward compatibility
             self.data_path = Path("data/listings.csv")
             self.brand = None
-            self.model = None
+            self.car_model = None
 
         self.df: Optional[pd.DataFrame] = None
-        self.model: Optional[RandomForestRegressor] = None
+        self.ml_model: Optional[RandomForestRegressor] = None
         self.scaler: Optional[StandardScaler] = None
         self.encoders: Dict[str, LabelEncoder] = {}
 
@@ -221,11 +221,13 @@ class CarValueAnalyzer:
         X_test_scaled = self.scaler.transform(X_test)
 
         # Train model
-        self.model = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1)
-        self.model.fit(X_train_scaled, y_train)
+        self.ml_model = RandomForestRegressor(
+            n_estimators=100, random_state=42, n_jobs=-1
+        )
+        self.ml_model.fit(X_train_scaled, y_train)
 
         # Evaluate model
-        y_pred = self.model.predict(X_test_scaled)
+        y_pred = self.ml_model.predict(X_test_scaled)
 
         metrics = {
             "mae": mean_absolute_error(y_test, y_pred),
@@ -247,17 +249,17 @@ class CarValueAnalyzer:
         Returns:
             DataFrame with value scores and recommendations
         """
-        if self.model is None:
+        if self.ml_model is None:
             self.train_model()
 
-        if self.df is None or self.model is None or self.scaler is None:
+        if self.df is None or self.ml_model is None or self.scaler is None:
             raise ValueError("Model not trained or data not available")
 
         X, _ = self.prepare_features()
         X_scaled = self.scaler.transform(X)
 
         # Predict prices
-        predicted_prices = self.model.predict(X_scaled)
+        predicted_prices = self.ml_model.predict(X_scaled)
 
         # Calculate value score (actual vs predicted price)
         self.df["predicted_price"] = predicted_prices
